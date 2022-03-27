@@ -42,7 +42,7 @@ class PhpStan(lint.Linter):
                     return []
 
                 opts.append("--autoload-file={}".format(quote(autoload_file)))
-        return cmd + opts + ["${args}", "--", "${file}"]
+        return cmd + opts + ["${args}", "--", "'${file}'"]
 
     def get_cmd(self):
         # We need to patch `get_cmd` to handle empty return values from `cmd`.
