@@ -84,11 +84,16 @@ class PhpStan(lint.Linter):
 
         for file in content['files']:
             for error in content['files'][file]['messages']:
-
+                # If there is a tip we should display it instead of error
+                # as it is more useful to solve the problem
                 error_message = error['message']
 
+                # If ignorable is false, then display show_quick_panle
+                if 'ignorable' in error and not error['ignorable']:
+                    error_list.append(error_message)
+
                 if 'tip' in error:
-                    # the character • is used for list in tips
+                    # the character • is used for list of tips
                     tip = error['tip'].replace("•", "💡")
 
                     if not tip.startswith("💡"):
@@ -107,18 +112,13 @@ class PhpStan(lint.Linter):
                 col = leading_whitespace_length
                 end_col = len(line_content)
 
+                # Try to check if we can find the locate the key in the line
                 if key:
-                    pattern = rf"{key}"
-                    # Check if key begins with $
-                    if key.startswith('$'):
-                        pattern = rf"\{key}"
+                    pos = self.find_position_key(key, line_content)
 
-                    key_match = re.search(pattern, line_content)
-
-                    if key_match:
-                        # Compute the start and end columns
-                        col = key_match.start()
-                        end_col = key_match.end()
+                    if pos is not None:
+                        col = pos[0]
+                        end_col = pos[1]
 
                 yield lint.LintMatch(
                     match=error,
@@ -184,10 +184,23 @@ class PhpStan(lint.Linter):
             if match:
                 return match.group(1)
 
-        elif error['identifier'] == 'property.nonObject':
-            match = re.search(r'property \$([\w_]+) on mixed\.', error_message)
+        elif error['identifier'] == 'property.readOnlyAssignNotInConstructor':
+            match = re.search(r'::\$(\w+)', error_message)
             if match:
                 return match.group(1)
+
+        elif error['identifier'] == 'property.nonObject':
+            match = re.search(r'property \$([\w_]+) on', error_message)
+            if match:
+                return "->" + match.group(1)
+
+        elif error['identifier'] == 'property.uninitializedReadonly':
+            match = re.search(r'(\$\w+)', error_message)
+            if match:
+                return match.group(1)
+
+        elif error['identifier'] == 'property.onlyRead':
+            return "readonly"
 
         elif error['identifier'] == 'missingType.return':
             match = re.search(r'Method ([\w\\]+)::(\w+)\(\) has no return type specified\.', error_message)
@@ -198,6 +211,8 @@ class PhpStan(lint.Linter):
             match = re.search(r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no value type specified in iterable type array\.', error_message)
             if match:
                 return match.group(1)
+            else:
+                return ": array"
 
         elif error['identifier'] == 'missingType.property':
             match = re.search(r'Property [\w\\]+::(\$\w+) has no type specified\.', error_message)
@@ -218,6 +233,26 @@ class PhpStan(lint.Linter):
             match = re.search(r'Call to an undefined method [\w\\]+::(\w+)\(\)\.', error_message)
             if match:
                 return match.group(1)
+
+        elif error['identifier'] == 'method.nameCase':
+            match = re.search(r'incorrect case: (\w+)', error_message)
+            if match:
+                return match.group(1)
+
+        elif error['identifier'] == 'method.void':
+            match = re.search(r'Result of method [\w\\]+::(\w+)\(\)', error_message)
+            if match:
+                return match.group(1)
+
+        elif error['identifier'] == 'method.childParameterType':
+            match = re.search(r'Parameter #(\d+) (\$\w+)', error_message)
+            if match:
+                return match.group(2)
+
+        elif error['identifier'] == 'method.nonObject':
+            match = re.search(r'\b([a-zA-Z_]\w*)\(\)', error_message)
+            if match:
+                return "->" + match.group(1)
 
         elif error['identifier'] == 'constructor.unusedParameter':
             match = re.search(r'Constructor of class [\w\\]+ has an unused parameter (\$\w+)\.', error_message)
@@ -259,7 +294,7 @@ class PhpStan(lint.Linter):
                 return match.group(1)
 
         elif error['identifier'] == 'assign.propertyReadOnly':
-            match = re.search(r'Property object\{[^}]*\bname: string\b[^}]*\}::\$(\w+) is not writable\.', error_message)
+            match = re.search(r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.', error_message)
             if match:
                 return match.group(1)
 
@@ -327,4 +362,48 @@ class PhpStan(lint.Linter):
             if match:
                 return match.group(1)
 
+        elif error['identifier'] == 'return.type':
+            return 'return'
+
         return None
+
+    def find_position_key(self, key, line_content):
+        pattern = rf"{key}"
+        # Check if key begins with $
+        if key.startswith('$'):
+            pattern = rf"\{key}"
+
+        # Below we will do 3 searches, the first 2 because of associative arrays
+        # can use ' or ". Example $data["index"] and $data['index']
+        #
+        # Search with single quote '
+        key_match = re.search("'" + pattern + "'", line_content)
+
+        if key_match:
+            col = key_match.start() + 1
+            end_col = key_match.end() - 1
+
+            return col, end_col
+
+        # Search with double quote "
+        key_match = re.search('"' + pattern + '"', line_content)
+
+        if key_match:
+            col = key_match.start() + 1
+            end_col = key_match.end() - 1
+
+            return col, end_col
+
+        # Original search, without any quote
+        key_match = re.search(pattern, line_content)
+
+        if key_match:
+            # Compute the start and end columns
+            col = key_match.start()
+            end_col = key_match.end()
+
+            # Adjust to the actual position of the key of the object
+            if key.startswith('->'):
+                col = key_match.start() + 2
+
+            return col, end_col
