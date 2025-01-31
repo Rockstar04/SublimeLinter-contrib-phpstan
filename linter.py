@@ -107,12 +107,12 @@ class PhpStan(lint.Linter):
                 stripped_line = line_content.lstrip()
                 leading_whitespace_length = len(line_content) - len(stripped_line)
 
-                # Highlight the whole line by default
+                # Highlight the whole line in which the error is reported by default
                 key = self.extract_offset_key(error)
                 col = leading_whitespace_length
                 end_col = len(line_content)
 
-                # Try to check if we can find the locate the key in the line
+                # Try to check if we can find the position of the key in the line
                 if key:
                     pos = self.find_position_key(key, line_content)
 
@@ -144,17 +144,17 @@ class PhpStan(lint.Linter):
                 return match.group(1)
 
         elif error['identifier'] == 'argument.type':
-            match = re.search(r'Parameter #\d+ \$(\w+) of method [\w\\]+::(\w+)\(\) expects .*, .+ given\.', error_message)
+            match = re.search(r'::(\w+)\(\)', error_message)
             if match:
-                return match.group(2)
+                return match.group(1)
 
             match = re.search(r'function (\w+)', error_message)
             if match:
                 return match.group(1)
 
-            match = re.search(r'Method ([\w\\]+)::(\w+)\(\) is unused\.', error_message)
+            match = re.search(r'Method [\w\\]+::(\w+)\(\) is unused\.', error_message)
             if match:
-                return match.group(2)
+                return match.group(1)
 
         elif error['identifier'] == 'arguments.count':
             match = re.search(r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.', error_message)
@@ -175,9 +175,9 @@ class PhpStan(lint.Linter):
             if match:
                 return match.group(1)
 
-            match = re.search(r'Static property ([\w\\]+)::(\$\w+) is unused\.', error_message)
+            match = re.search(r'Static property [\w\\]+::(\$\w+) is unused\.', error_message)
             if match:
-                return match.group(2)
+                return match.group(1)
 
         elif error['identifier'] == 'property.notFound':
             match = re.search(r'Access to an undefined property [\w\\]+::\$(\w+)\.', error_message)
@@ -203,9 +203,9 @@ class PhpStan(lint.Linter):
             return "readonly"
 
         elif error['identifier'] == 'missingType.return':
-            match = re.search(r'Method ([\w\\]+)::(\w+)\(\) has no return type specified\.', error_message)
+            match = re.search(r'::(\w+)\(\)', error_message)
             if match:
-                return match.group(2)
+                return match.group(1)
 
         elif error['identifier'] == 'missingType.iterableValue':
             match = re.search(r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no value type specified in iterable type array\.', error_message)
@@ -225,7 +225,7 @@ class PhpStan(lint.Linter):
                 return match.group(1)
 
         elif error['identifier'] == 'method.unused':
-            match = re.search(r'Method ([\w\\]+)::(\w+)\(\) is unused\.', error_message)
+            match = re.search(r'::(\w+)\(\)', error_message)
             if match:
                 return match.group(1)
 
@@ -245,13 +245,14 @@ class PhpStan(lint.Linter):
                 return match.group(1)
 
         elif error['identifier'] == 'method.childParameterType':
-            match = re.search(r'Parameter #(\d+) (\$\w+)', error_message)
+            match = re.search(r'Parameter #\d+ \$(\w+)', error_message)
             if match:
-                return match.group(2)
+                return match.group(1)
 
         elif error['identifier'] == 'method.nonObject':
             match = re.search(r'\b([a-zA-Z_]\w*)\(\)', error_message)
             if match:
+                # Concat -> and match.group(1)
                 return "->" + match.group(1)
 
         elif error['identifier'] == 'constructor.unusedParameter':
@@ -404,6 +405,8 @@ class PhpStan(lint.Linter):
 
             # Adjust to the actual position of the key of the object
             if key.startswith('->'):
+                col = key_match.start() + 2
+            elif key.startswith(': '):
                 col = key_match.start() + 2
 
             return col, end_col
