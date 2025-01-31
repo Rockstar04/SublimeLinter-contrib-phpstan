@@ -3,12 +3,13 @@ from shlex import quote
 import logging
 import json
 import re
+import sublime_plugin
 
 from SublimeLinter import lint
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
 
-class PhpStan(lint.Linter):
+class PhpStan(sublime_plugin.ViewEventListener):
     regex = None
     error_stream = lint.STREAM_STDOUT
     default_type = "error"
@@ -18,6 +19,11 @@ class PhpStan(lint.Linter):
     defaults = {
         "selector": "embedding.php, source.php"
     }
+
+    # Execute PHPStan analysis when clicking on a file's tab
+    def on_activated_async(self):
+        if self.view.file_name() and self.view.file_name().endswith(".php"):  # Adjust file type as needed
+            self.view.run_command("sublime_linter_lint")
 
     def cmd(self):
         cmd = ["phpstan", "analyse"]
