@@ -132,239 +132,132 @@ class PhpStan(lint.Linter):
                 )
 
     def extract_offset_key(self, error):
-        error_message = error['message']
-
         # If there is no identifier, we can't extract
         if 'identifier' not in error:
             return None
 
-        if error['identifier'] == 'offsetAccess.notFound':
-            match = re.search(r"Offset '([^']+)'", error_message)
-            if match:
-                return match.group(1)
+        identifier = error['identifier']
 
-        elif error['identifier'] == 'argument.type':
-            match = re.search(r'::(\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
+        if identifier == 'return.type':
+            return 'return'
 
-            match = re.search(r'function (\w+)', error_message)
-            if match:
-                return match.group(1)
+        elif identifier == 'method.visibility':
+            return 'private'
 
-            match = re.search(r'Method [\w\\]+::(\w+)\(\) is unused\.', error_message)
-            if match:
-                return match.group(1)
+        elif identifier == 'constructor.missingParentCall':
+            return '__construct'
 
-        elif error['identifier'] == 'arguments.count':
-            match = re.search(r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.', error_message)
-            if match:
-                return match.group(1)
+        # List of regex patterns per error identifier
+        patterns = {
+            'argument.type': [
+                r'::(\w+)\(\)',
+                r'function (\w+)',
+                r'Method [\w\\]+::(\w+)\(\) is unused\.',
+            ],
+            'arguments.count': [
+                r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.',
+                r'Static method (\w+::\w+)\(\) invoked with \d+ parameter',
+            ],
+            'assign.propertyReadOnly': r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.',
+            'assign.propertyType': [
+                r'does not accept [\w\\]+\\(\w+)\.',
+                r'::\$(\w+)',
+                r'::(\$\w+)',
+            ],
+            'class.notFound': [
+                r'on an unknown class [\w\\]+\\(\w+)\.',
+                r'has unknown class [\w\\]+\\(\w+) as its type\.',
+                r'Instantiated class [\w\\]+\\(\w+) not found\.',
+                r'Parameter \$\w+ of method [\w\\]+::\w+\(\) has invalid type (\w+)\.',
+                r'Call to method (\w+)\(\) on an unknown class (\w+)\.',
+                r'Method [\w\\]+::\w+\(\) has invalid return type (\w+)\.',
+                r'extends unknown class [\w\\]+\\(\w+)\.'
+            ],
+            'classConstant.notFound': r'(::\w+)\.',
+            'constant.notFound': r'Constant (\w+) not found\.',
+            'constructor.unusedParameter': r'Constructor of class [\w\\]+ has an unused parameter (\$\w+)\.',
+            'function.nameCase': r'incorrect case: (\w+)',
+            'function.notFound': r'Function (\w+) not found\.',
+            'function.strict': r'Call to function (\w+)\(\)',
+            'interface.notFound': r'implements unknown interface [\w\\]+\\(\w+)\.',
+            'isset.offset': r'static property [\w\\]+::(\$\w+)',
+            'method.childParameterType': r'Parameter #\d+ \$(\w+)',
+            'method.nameCase': r'incorrect case: (\w+)',
+            'method.nonObject': r'\b([a-zA-Z_]\w*)\(\)',
+            'method.notFound': r'Call to an undefined method [\w\\]+::(\w+)\(\)\.',
+            'method.unused': r'::(\w+)\(\)',
+            'method.void': r'Result of method [\w\\]+::(\w+)\(\)',
+            'missingType.iterableValue': r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no value type specified in iterable type array\.',
+            'missingType.parameter': r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no type specified\.',
+            'missingType.property': r'Property [\w\\]+::(\$\w+) has no type specified\.',
+            'missingType.return': r'::(\w+)\(\)',
+            'offsetAccess.notFound': r"Offset '([^']+)'",
+            'property.notFound': r'Access to an undefined property [\w\\]+::\$(\w+)\.',
+            'property.nonObject': r'property \$([\w_]+) on',
+            'property.onlyRead': r'::\$(\w+)',
+            'property.onlyWritten': [
+                r'Property [\w\\]+::(\$\w+) is never read, only written\.',
+                r'Static property [\w\\]+::(\$\w+) is never read, only written\.',
+            ],
+            'property.readOnlyAssignNotInConstructor': r'Cannot assign to a read-only property [\w\\]+::\$(\w+)',
+            'property.uninitializedReadonly': [
+                r'(\$\w+)',
+                r'::\$(\w+)',
+            ],
+            'property.unused': [
+                r'Property [\w\\]+::(\$\w+) is unused\.',
+                r'Static property [\w\\]+::(\$\w+) is unused\.',
+            ],
+            'return.phpDocType': r'native type (\w+)',
+            'return.type': r'return', # to do
+            'staticMethod.notFound': r'undefined static method (\w+::\w+)\(\)\.',
+            'staticMethod.void': r'static method [\w\\]+::(\w+)\(\)',
+            'staticProperty.notFound': r'static property [\w\\]+::(\$\w+)',
+            'variable.undefined': [
+                r'Undefined variable: (\$\w+)',
+                r'Variable (\$\w+) might not be defined\.'
+            ],
+        }
 
-            match = re.search(r'Static method (\w+::\w+)\(\) invoked with \d+ parameter', error_message)
-            if match:
-                return match.group(1)
+        key = self.parse_pattern(patterns, error)
 
-        elif error['identifier'] == 'property.onlyWritten':
-            match = re.search(r'Property [\w\\]+::(\$\w+) is never read, only written\.', error_message)
-            if match:
-                return match.group(1)
+        if key is not None:
+            if identifier == 'property.uninitializedReadonly':
+                # remove the first character $
+                return key[1:]
 
-        elif error['identifier'] == 'property.unused':
-            match = re.search(r'Property [\w\\]+::(\$\w+) is unused\.', error_message)
-            if match:
-                return match.group(1)
+            is_static = False
+            if 'static' in error['message']:
+                is_static = True
 
-            match = re.search(r'Static property [\w\\]+::(\$\w+) is unused\.', error_message)
-            if match:
-                return match.group(1)
+            if not is_static and identifier in {'method.nonObject', 'property.nonObject', 'assign.propertyType'}:
+                return "->" + key
 
-        elif error['identifier'] == 'property.notFound':
-            match = re.search(r'Access to an undefined property [\w\\]+::\$(\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'property.readOnlyAssignNotInConstructor':
-            match = re.search(r'::\$(\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'property.nonObject':
-            match = re.search(r'property \$([\w_]+) on', error_message)
-            if match:
-                return "->" + match.group(1)
-
-        elif error['identifier'] == 'property.uninitializedReadonly':
-            match = re.search(r'(\$\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'property.onlyRead':
-            return "readonly"
-
-        elif error['identifier'] == 'missingType.return':
-            match = re.search(r'::(\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'missingType.iterableValue':
-            match = re.search(r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no value type specified in iterable type array\.', error_message)
-            if match:
-                return match.group(1)
-            else:
+        else:
+            if identifier == 'missingType.iterableValue':
                 return ": array"
 
-        elif error['identifier'] == 'missingType.property':
-            match = re.search(r'Property [\w\\]+::(\$\w+) has no type specified\.', error_message)
-            if match:
-                return match.group(1)
+            if identifier == 'property.onlyRead':
+                return "readonly"
 
-        elif error['identifier'] == 'missingType.parameter':
-            match = re.search(r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no type specified\.', error_message)
-            if match:
-                return match.group(1)
+        return key
 
-        elif error['identifier'] == 'method.unused':
-            match = re.search(r'::(\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
+    def parse_pattern(self, patterns, error):
+        error_message = error['message']
+        identifier = error['identifier']
 
-        elif error['identifier'] == 'method.notFound':
-            match = re.search(r'Call to an undefined method [\w\\]+::(\w+)\(\)\.', error_message)
-            if match:
-                return match.group(1)
+        if identifier in patterns:
+            pattern = patterns[identifier]
+            if isinstance(pattern, list):
+                for pat in pattern:
+                    match = re.search(pat, error_message)
+                    if match:
+                        return match.group(1)
+            else:
+                match = re.search(pattern, error_message)
 
-        elif error['identifier'] == 'method.nameCase':
-            match = re.search(r'incorrect case: (\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'method.void':
-            match = re.search(r'Result of method [\w\\]+::(\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'method.childParameterType':
-            match = re.search(r'Parameter #\d+ \$(\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'method.nonObject':
-            match = re.search(r'\b([a-zA-Z_]\w*)\(\)', error_message)
-            if match:
-                # Concat -> and match.group(1)
-                return "->" + match.group(1)
-
-        elif error['identifier'] == 'constructor.unusedParameter':
-            match = re.search(r'Constructor of class [\w\\]+ has an unused parameter (\$\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'class.notFound':
-            match = re.search(r'on an unknown class [\w\\]+\\(\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'has unknown class [\w\\]+\\(\w+) as its type\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'Instantiated class [\w\\]+\\(\w+) not found\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'Parameter \$\w+ of method [\w\\]+::\w+\(\) has invalid type (\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'Call to method (\w+)\(\) on an unknown class (\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'Method [\w\\]+::\w+\(\) has invalid return type (\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'extends unknown class [\w\\]+\\(\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'classConstant.notFound':
-            match = re.search(r'(::\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'assign.propertyReadOnly':
-            match = re.search(r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'assign.propertyType':
-            match = re.search(r'does not accept [\w\\]+\\(\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'constant.notFound':
-            match = re.search(r'Constant (\w+) not found\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'function.nameCase':
-            match = re.search(r'incorrect case: (\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'function.notFound':
-            match = re.search(r'Function (\w+) not found\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'function.strict':
-            match = re.search(r'Call to function (\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'staticMethod.notFound':
-            match = re.search(r'undefined static method (\w+::\w+)\(\)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'staticMethod.void':
-            match = re.search(r'static method [\w\\]+::(\w+)\(\)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'variable.undefined':
-            match = re.search(r'Undefined variable: (\$\w+)', error_message)
-            if match:
-                return match.group(1)
-
-            match = re.search(r'Variable (\$\w+) might not be defined\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'interface.notFound':
-            match = re.search(r'implements unknown interface [\w\\]+\\(\w+)\.', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'isset.offset':
-            match = re.search(r'Offset \'(\w+)\' on array', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'staticProperty.notFound':
-            match = re.search(r'static property [\w\\]+::(\$\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'return.phpDocType':
-            match = re.search(r'native type (\w+)', error_message)
-            if match:
-                return match.group(1)
-
-        elif error['identifier'] == 'return.type':
-            return 'return'
+                if match:
+                    return match.group(1)
 
         return None
 
@@ -408,5 +301,9 @@ class PhpStan(lint.Linter):
                 col = key_match.start() + 2
             elif key.startswith(': '):
                 col = key_match.start() + 2
+
+            # Include $ if there is $ just before the key
+            if line_content[col-1:col] == '$':
+                col = col - 1
 
             return col, end_col
