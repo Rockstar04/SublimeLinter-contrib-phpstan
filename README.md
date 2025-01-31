@@ -2,7 +2,7 @@ SublimeLinter-contrib-phpstan
 ================================
 
 This linter plugin for [SublimeLinter](https://github.com/SublimeLinter/SublimeLinter) provides an interface to [PHPStan](https://github.com/phpstan/phpstan).
-The code analysis is executed on the edited file when it is saved.
+The code analysis is executed on the edited file when it is saved and when its tab is clicked.
 
 ![examples](screenshot.png)
 

@@ -3,10 +3,20 @@ from shlex import quote
 import logging
 import json
 import re
+import sublime_plugin
 
 from SublimeLinter import lint
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
+
+class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
+    @classmethod
+    def is_applicable(cls, settings):
+        return True
+
+    def on_activated_async(self):
+        if self.view.file_name() and self.view.file_name().endswith(".php"):
+            self.view.run_command("sublime_linter_lint")
 
 class PhpStan(lint.Linter):
     regex = None
