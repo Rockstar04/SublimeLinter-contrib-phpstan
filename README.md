@@ -13,7 +13,7 @@ Please use [Package Control](https://packagecontrol.io) to install the linter pl
 Alternatively, you can clone this repository into your Sublime Text `Packages` directory as follow:
 
 ```bash
-cd ~/Library/Application Support/Sublime Text/Packages
+cd ~/Library/Application\ Support/Sublime\ Text/Packages
 git clone https://github.com/Rockstar04/SublimeLinter-contrib-phpstan
 ```
 
@@ -22,3 +22,7 @@ By default, this plugin uses PHPStan from `vendor/bin`. Otherwise, it will fall 
 ## Debugging
 If you encounter a problem, you can enable debug mode to see what's going on by simply adding `"debug": true` to your SublimeLinter settings.
 You can then view the debug messages in the Sublime Text console by going to <kbd>View</kbd> > <kbd>Show Console</kbd>.
+
+### :heart: Like it? :heart:
+
+:star: Star it! :star:
