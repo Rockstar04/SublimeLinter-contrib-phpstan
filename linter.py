@@ -33,6 +33,10 @@ class PhpStan(lint.Linter):
         cmd = ["phpstan", "analyse"]
         opts = ["--error-format=json", "--no-progress"]
 
+        # if we have arguments for configuration and autoload file, we don't need to find them
+        if self.have_argument("--configuration") and self.have_argument("--autoload-file"):
+            return cmd + ["${args}"] + opts + ["--", "${file}"]
+
         configPath = self.find_phpstan_configuration(self.view.file_name())
 
         if configPath:
@@ -50,6 +54,14 @@ class PhpStan(lint.Linter):
             print("⚠️ phpstan.neon has not been found - Fallback on PHPStan installed globally")
 
         return cmd + ["${args}"] + opts + ["--", "${file}"]
+
+    def have_argument(self, name):
+        if self.settings.get('args'):
+            for arg in self.settings.get('args'):
+                if arg.startswith(name):
+                    return True
+
+        return False
 
     def find_autoload_php(self, configPath):
         pathAutoLoad = configPath.replace("/phpstan.neon", "/vendor/autoload.php")
