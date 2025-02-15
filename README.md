@@ -23,6 +23,6 @@ By default, this plugin uses PHPStan from `vendor/bin`. Otherwise, it will fall 
 If you encounter a problem, you can enable debug mode to see what's going on by simply adding `"debug": true` to your SublimeLinter settings.
 You can then view the debug messages in the Sublime Text console by going to <kbd>View</kbd> > <kbd>Show Console</kbd>.
 
-### :heart: Like it? :heart:
+## :heart: Like it? :heart:
 
 :star: Star it! :star:

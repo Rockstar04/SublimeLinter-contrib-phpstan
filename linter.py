@@ -178,7 +178,7 @@ class PhpStan(lint.Linter):
             ],
             'arguments.count': [
                 r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.',
-                r'Static method (\w+::\w+)\(\) invoked with \d+ parameter',
+                r'::(\w+)\(\)',
             ],
             'assign.propertyReadOnly': r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.',
             'assign.propertyType': [
@@ -214,7 +214,7 @@ class PhpStan(lint.Linter):
             'missingType.property': r'Property [\w\\]+::(\$\w+) has no type specified\.',
             'missingType.return': r'::(\w+)\(\)',
             'offsetAccess.notFound': r"Offset '([^']+)'",
-            'property.notFound': r'Access to an undefined property [\w\\]+::\$(\w+)\.',
+            'property.notFound': r'::\$(\w+)',
             'property.nonObject': r'property \$([\w_]+) on',
             'property.onlyRead': r'::\$(\w+)',
             'property.onlyWritten': [
@@ -231,7 +231,7 @@ class PhpStan(lint.Linter):
                 r'Static property [\w\\]+::(\$\w+) is unused\.',
             ],
             'return.phpDocType': r'native type (\w+)',
-            'return.type': r'return', # to do
+            'return.unusedType': r'never returns (\w+)',
             'staticMethod.notFound': r'undefined static method (\w+::\w+)\(\)\.',
             'staticMethod.void': r'static method [\w\\]+::(\w+)\(\)',
             'staticProperty.notFound': r'static property [\w\\]+::(\$\w+)',
@@ -252,7 +252,7 @@ class PhpStan(lint.Linter):
             if 'static' in error['message']:
                 is_static = True
 
-            if not is_static and identifier in {'method.nonObject', 'property.nonObject', 'assign.propertyType'}:
+            if not is_static and identifier in {'method.nonObject', 'property.notFound', 'property.nonObject', 'assign.propertyType'}:
                 return "->" + key
 
         else:
@@ -293,7 +293,7 @@ class PhpStan(lint.Linter):
         # can use ' or ". Example $data["index"] and $data['index']
         #
         # Search with single quote '
-        key_match = re.search("'" + pattern + "'", line_content)
+        key_match = re.search("\\['" + pattern + "'\\]", line_content)
 
         if key_match:
             col = key_match.start() + 1
@@ -302,7 +302,7 @@ class PhpStan(lint.Linter):
             return col, end_col
 
         # Search with double quote "
-        key_match = re.search('"' + pattern + '"', line_content)
+        key_match = re.search('\\["' + pattern + '"\\]', line_content)
 
         if key_match:
             col = key_match.start() + 1
