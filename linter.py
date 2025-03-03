@@ -3,6 +3,8 @@ from shlex import quote
 import logging
 import json
 import re
+
+import sublime
 import sublime_plugin
 
 from SublimeLinter import lint
@@ -12,7 +14,14 @@ logger = logging.getLogger("SublimeLinter.plugins.phpstan")
 class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
     @classmethod
     def is_applicable(cls, settings):
-        return True
+        try:
+            user_settings = sublime.load_settings('SublimeLinter.sublime-settings')
+            auto_lint_setting = settings.get('SublimeLinter.linters.phpstan.auto_lint_on_tab_switch') or user_settings.get('linters')['phpstan']['auto_lint_on_tab_switch']
+            auto_lint = bool(auto_lint_setting)
+        except KeyError:
+            auto_lint = False
+
+        return auto_lint
 
     def on_activated_async(self):
         if self.view.file_name() and self.view.file_name().endswith(".php"):
