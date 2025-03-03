@@ -357,7 +357,7 @@ def phpstan_ignore_error(error, view):
     if error_identifier == '':
         # We're just always gonna insert a new line; either it's a new comment anyway, or it's another `@phpstan-ignore` **with** identifiers and we probably shouldn't touch those
         yield insert_preceding_line(
-            '// @phpstan-ignore {}'.format(error_identifier).strip(),
+            '// @phpstan-ignore',
             line,
         )
     else:
@@ -369,7 +369,7 @@ def phpstan_ignore_error(error, view):
                 read_previous_line(view, line),
             )
             or insert_preceding_line(
-                '// @phpstan-ignore {}'.format(error_identifier).strip(),
+                '// @phpstan-ignore {}'.format(error_identifier),
                 line,
             )
         )
