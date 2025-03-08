@@ -19,10 +19,7 @@ class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
             self.view.run_command("sublime_linter_lint")
 
 class PhpStan(lint.Linter):
-    regex = None
     error_stream = lint.STREAM_STDOUT
-    default_type = "error"
-    multiline = False
     tempfile_suffix = "-"
 
     defaults = {
@@ -109,10 +106,6 @@ class PhpStan(lint.Linter):
                 # If there is a tip we should display it instead of error
                 # as it is more useful to solve the problem
                 error_message = error['message']
-
-                # If ignorable is false, then display show_quick_panle
-                if 'ignorable' in error and not error['ignorable']:
-                    error_list.append(error_message)
 
                 if 'tip' in error:
                     # the character • is used for list of tips
