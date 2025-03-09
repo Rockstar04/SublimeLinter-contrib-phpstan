@@ -111,6 +111,7 @@ class PhpStan(lint.Linter):
                 # If there is a tip we should display it instead of error
                 # as it is more useful to solve the problem
                 error_message = error['message']
+
                 error_identifier = error['identifier'] if 'identifier' in error else ''
 
                 if 'tip' in error:
