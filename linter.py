@@ -396,7 +396,7 @@ def phpstan_ignore_error(error, view):
     if error_identifier == '':
         # We're just always gonna insert a new line; either it's a new comment anyway, or it's another `@phpstan-ignore` **with** identifiers and we probably shouldn't touch those
         yield insert_preceding_line(
-            '// @phpstan-ignore',
+            '// @phpstan-ignore-next-line',
             line,
         )
     else:
