@@ -15,8 +15,7 @@ class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
     @classmethod
     def is_applicable(cls, settings):
         try:
-            user_settings = sublime.load_settings('SublimeLinter.sublime-settings')
-            auto_lint_setting = settings.get('SublimeLinter.linters.phpstan.auto_lint_on_tab_switch') or user_settings.get('linters')['phpstan']['auto_lint_on_tab_switch']
+            auto_lint_setting = lint.persist.settings.get('linters')['phpstan']['auto_lint_on_tab_switch']
             auto_lint = bool(auto_lint_setting)
         except KeyError:
             auto_lint = False
