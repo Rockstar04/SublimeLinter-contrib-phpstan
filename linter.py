@@ -20,7 +20,7 @@ class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
         if self.view.file_name() and self.view.file_name().endswith(".php"):
             self.view.run_command("sublime_linter_lint")
 
-class PhpStan(lint.Linter):
+class PhpStan(lint.PhpLinter):
     tempfile_suffix = "-"
 
     defaults = {
