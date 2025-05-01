@@ -225,6 +225,7 @@ class PhpStan(lint.PhpLinter):
                 r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.',
                 r'::(\w+)\(\)',
             ],
+            'array.duplicateKey': r"value '([^']+)'",
             'assign.propertyReadOnly': r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.',
             'assign.propertyType': [
                 r'does not accept [\w\\]+\\(\w+)\.',
