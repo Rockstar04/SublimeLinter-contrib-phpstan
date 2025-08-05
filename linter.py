@@ -39,7 +39,7 @@ class PhpStan(PhpLinter):
     stderr_strip_regexes = [
         # This is necessary because phpstan may be passed the `-v` argument, which also causes it to output some stats on stderr
         # Rather than always requiring phpstan to run non-verbosely (which isn't very friendly), we'll simply try to strip the relevant lines
-        re.compile(r'^Elapsed time: .*?(\r?\nUsed memory: .*)?$', re.MULTILINE),
+        re.compile(r'^(Elapsed time|Used memory): .+', re.MULTILINE),
     ]
 
     # If the remainder of stderr matches one of these strings entirely, we'll change it to a warning instead of an error
