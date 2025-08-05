@@ -8,7 +8,7 @@ import re
 import sublime
 import sublime_plugin
 
-from SublimeLinter import lint
+from SublimeLinter.lint import LintMatch, PhpLinter
 from SublimeLinter.lint.quick_fix import (QuickAction, extend_existing_comment, insert_preceding_line, line_error_is_on, merge_actions_by_code_and_line, quick_actions_for, read_previous_line)
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
@@ -28,7 +28,7 @@ class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
         if self.view.file_name() and self.view.file_name().endswith(".php"):
             self.view.run_command("sublime_linter_lint")
 
-class PhpStan(lint.PhpLinter):
+class PhpStan(PhpLinter):
     tempfile_suffix = "-"
 
     defaults = {
@@ -188,7 +188,7 @@ class PhpStan(lint.PhpLinter):
                         col = pos[0]
                         end_col = pos[1]
 
-                match = lint.LintMatch(
+                match = LintMatch(
                     match=error,
                     filename=file,
                     line=error['line'] - 1,
