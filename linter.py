@@ -1,3 +1,4 @@
+from functools import partial
 from os import path
 from shlex import quote
 import logging
@@ -8,6 +9,7 @@ import sublime
 import sublime_plugin
 
 from SublimeLinter import lint
+from SublimeLinter.lint.quick_fix import (QuickAction, extend_existing_comment, insert_preceding_line, line_error_is_on, merge_actions_by_code_and_line, quick_actions_for, read_previous_line)
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
 
@@ -26,16 +28,25 @@ class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
         if self.view.file_name() and self.view.file_name().endswith(".php"):
             self.view.run_command("sublime_linter_lint")
 
-class PhpStan(lint.Linter):
-    regex = None
-    error_stream = lint.STREAM_STDOUT
-    default_type = "error"
-    multiline = False
+class PhpStan(lint.PhpLinter):
     tempfile_suffix = "-"
 
     defaults = {
         "selector": "embedding.php, source.php"
     }
+
+    # These lines will be stripped from stderr, allowing the remainder through (if any)
+    stderr_strip_regexes = [
+        # This is necessary because phpstan may be passed the `-v` argument, which also causes it to output some stats on stderr
+        # Rather than always requiring phpstan to run non-verbosely (which isn't very friendly), we'll simply try to strip the relevant lines
+        re.compile(r'^Elapsed time: .*?(\r?\nUsed memory: .*)?$', re.MULTILINE),
+    ]
+
+    # If the remainder of stderr matches one of these strings entirely, we'll change it to a warning instead of an error
+    stderr_warning_strings = [
+        # This is needed because you may e.g. be editing a file which is excluded by phpstan, which also means it won't output any JSON at all
+        '[ERROR] No files found to analyse.',
+    ]
 
     def cmd(self):
         cmd = ["phpstan", "analyse"]
@@ -97,14 +108,43 @@ class PhpStan(lint.Linter):
 
             file_path = basedir
 
-    def find_errors(self, output):
+    def on_stderr(self, stderr):
+        for strip_regex in self.stderr_strip_regexes:
+            stderr = re.sub(strip_regex, '', stderr).strip()
+
+        if not stderr:
+            return
+
+        # Since we check for exact matches here, stripping stuff via regex should be done before this (since phpstan can still emit the elapsed time and we don't need that)
+        for warning_str in self.stderr_warning_strings:
+            if warning_str == stderr:
+                logger.warning(stderr)
+                self.notify_failure()
+                return
+
+        logger.error(stderr)
+        self.notify_failure()
+
+    def parse_output(self, proc, virtual_view):
+        assert proc.stdout is not None
+        assert proc.stderr is not None
+
+        stderr = proc.stderr.strip()
+        if stderr:
+            self.on_stderr(stderr)
+
+        stdout = proc.stdout.strip()
+        if not stdout:
+            logger.info('PHPStan returned no output')
+            return
+
         try:
-            content = json.loads(output)
+            content = json.loads(stdout)
         except ValueError:
             logger.error(
                 "JSON Decode error: We expected JSON from PHPStan, "
                 "but instead got this:\n{}\n\n"
-                .format(output)
+                .format(stdout)
             )
             self.notify_failure()
             return
@@ -118,9 +158,7 @@ class PhpStan(lint.Linter):
                 # as it is more useful to solve the problem
                 error_message = error['message']
 
-                # If ignorable is false, then display show_quick_panle
-                if 'ignorable' in error and not error['ignorable']:
-                    error_list.append(error_message)
+                error_identifier = error['identifier'] if 'identifier' in error else ''
 
                 if 'tip' in error:
                     # the character • is used for list of tips
@@ -150,7 +188,7 @@ class PhpStan(lint.Linter):
                         col = pos[0]
                         end_col = pos[1]
 
-                yield lint.LintMatch(
+                match = lint.LintMatch(
                     match=error,
                     filename=file,
                     line=error['line'] - 1,
@@ -158,8 +196,15 @@ class PhpStan(lint.Linter):
                     end_col=end_col,
                     message=error_message,
                     error_type='error',
-                    code='',
+                    code=error_identifier,
                 )
+
+                processed_error = self.process_match(match, virtual_view)
+                if processed_error:
+                    # We'll display some quick actions for ignorable errors later
+                    if 'ignorable' not in error or error['ignorable']:
+                        processed_error['ignore_error'] = error['message']
+                    yield processed_error
 
     def extract_offset_key(self, error):
         # If there is no identifier, we can't extract
@@ -188,6 +233,7 @@ class PhpStan(lint.Linter):
                 r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.',
                 r'::(\w+)\(\)',
             ],
+            'array.duplicateKey': r"value '([^']+)'",
             'assign.propertyReadOnly': r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.',
             'assign.propertyType': [
                 r'does not accept [\w\\]+\\(\w+)\.',
@@ -337,3 +383,41 @@ class PhpStan(lint.Linter):
                 col = col - 1
 
             return col, end_col
+
+@quick_actions_for('phpstan')
+def phpstan_actions_provider(errors, view):
+    def make_action(error):
+        # Newer phpstan versions actually require a specific identifier to ignore, the fallback is just for some backwards compatibility
+        # Note though that without a valid identifier, the on-hover quick actions won't list it (still works via the Command Palette though)
+        return QuickAction(
+            'phpstan: Ignore {}'.format(error['code'] if error['code'] != '' else 'all errors'),
+            partial(phpstan_ignore_error, error),
+            '{ignore_error}'.format(**error),
+            solves=[error]
+        )
+
+    except_errors = lambda error: 'ignore_error' not in error
+    yield from merge_actions_by_code_and_line(make_action, except_errors, errors, view)
+
+def phpstan_ignore_error(error, view):
+    line = line_error_is_on(view, error)
+    error_identifier = error['code']
+    if error_identifier == '':
+        # We're just always gonna insert a new line; either it's a new comment anyway, or it's another `@phpstan-ignore` **with** identifiers and we probably shouldn't touch those
+        yield insert_preceding_line(
+            '// @phpstan-ignore-next-line',
+            line,
+        )
+    else:
+        yield (
+            extend_existing_comment(
+                r'// @phpstan-ignore (?P<codes>[\w\-./]+(?:,\s?[\w\-./]+)*)(?P<comment>\s+\()?',
+                ', ',
+                {error_identifier},
+                read_previous_line(view, line),
+            )
+            or insert_preceding_line(
+                '// @phpstan-ignore {}'.format(error_identifier),
+                line,
+            )
+        )
