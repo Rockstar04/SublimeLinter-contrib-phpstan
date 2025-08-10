@@ -4,23 +4,50 @@ from shlex import quote
 import logging
 import json
 import re
+
+import sublime
 import sublime_plugin
 
-from SublimeLinter import lint
+from SublimeLinter.lint import LintMatch, PhpLinter, hit, util
 from SublimeLinter.lint.quick_fix import (QuickAction, extend_existing_comment, insert_preceding_line, line_error_is_on, merge_actions_by_code_and_line, quick_actions_for, read_previous_line)
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
 
-class AutoLintOnTabSwitchListener(sublime_plugin.ViewEventListener):
-    @classmethod
-    def is_applicable(cls, settings):
-        return True
+class AutoLintOnActivation(sublime_plugin.EventListener):
+    # We'll need to ensure that we don't keep triggering on the same file every time you (re)activate it, by keeping track of views linted since the last change
+    ignored_views = set()
 
-    def on_activated_async(self):
-        if self.view.file_name() and self.view.file_name().endswith(".php"):
-            self.view.run_command("sublime_linter_lint")
+    def on_load(self, view):
+        # Newly loaded files will already be linted (at least with default linting settings), so we'll need to prevent doing it twice in a row
+        buffer_id = view.buffer_id()
+        if buffer_id not in self.ignored_views:
+            self.ignored_views.add(buffer_id)
 
-class PhpStan(lint.PhpLinter):
+    def on_reload(self, view):
+        # Unlike regular loads, reloads normally happen due to changes via external editors, which might change lint results
+        # The reloaded file itself will also already be linted (with default linting settings), so we'll need to ensure the **other** files can get linted too
+        self.ignored_views.clear()
+        self.ignored_views.add(view.buffer_id())
+
+    def on_pre_save(self, view):
+        # Since you can save the same file over and over again without any changes, we'll have to verify that something actually changed
+        # The saved file itself will already be linted as well (with default linting settings)
+        if view.is_dirty():
+            self.ignored_views.clear()
+            self.ignored_views.add(view.buffer_id())
+
+    def on_activated(self, view):
+        # Views without a sheet are things like the command palette, search bar and error panel, which we can safely ignore
+        if view.sheet_id() == 0 or not util.is_lintable(view):
+            return
+
+        # Note that `hit()` verifies that phpstan is actually assigned to the view before running it, so we don't really need any other checks here
+        buffer_id = view.buffer_id()
+        if buffer_id not in self.ignored_views:
+            self.ignored_views.add(buffer_id)
+            hit(view, 'on_modified', only_run=['phpstan'])
+
+class PhpStan(PhpLinter):
     tempfile_suffix = "-"
 
     defaults = {
@@ -31,7 +58,7 @@ class PhpStan(lint.PhpLinter):
     stderr_strip_regexes = [
         # This is necessary because phpstan may be passed the `-v` argument, which also causes it to output some stats on stderr
         # Rather than always requiring phpstan to run non-verbosely (which isn't very friendly), we'll simply try to strip the relevant lines
-        re.compile(r'^Elapsed time: .*?(\r?\nUsed memory: .*)?$', re.MULTILINE),
+        re.compile(r'^(Elapsed time|Used memory): .+', re.MULTILINE),
     ]
 
     # If the remainder of stderr matches one of these strings entirely, we'll change it to a warning instead of an error
@@ -180,7 +207,7 @@ class PhpStan(lint.PhpLinter):
                         col = pos[0]
                         end_col = pos[1]
 
-                match = lint.LintMatch(
+                match = LintMatch(
                     match=error,
                     filename=file,
                     line=error['line'] - 1,
