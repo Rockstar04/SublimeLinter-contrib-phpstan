@@ -287,6 +287,8 @@ class PhpStan(PhpLinter):
             'missingType.parameter': r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no type specified\.',
             'missingType.property': r'Property [\w\\]+::(\$\w+) has no type specified\.',
             'missingType.return': r'::(\w+)\(\)',
+            'nullCoalesce.offset': r"Offset\s+'([^']+)'",
+            'nullCoalesce.variable': r'Variable (\$\w+) on left side of \?\? is never defined\.',
             'offsetAccess.notFound': r"Offset '([^']+)'",
             'offsetAccess.nonOffsetAccessible': r"Cannot access offset '([^']+)' on array",
             'property.notFound': r'::\$(\w+)',
