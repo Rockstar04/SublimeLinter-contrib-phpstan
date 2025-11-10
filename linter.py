@@ -316,6 +316,19 @@ class PhpStan(PhpLinter):
                 r'Undefined variable: (\$\w+)',
                 r'Variable (\$\w+) might not be defined\.'
             ],
+
+            'pdoSql.columnMismatch': r'SELECT column mismatch: PHPDoc expects property "([^"]+)"',
+            'pdoSql.columnMissing': r'SELECT column missing: PHPDoc expects property "([^"]+)"',
+            'pdoSql.extraParameter': r'Parameter :(\w+)',
+            'pdoSql.sqlSyntax': r'but token [^ ]+ with value ["\']?([\w]+)["\']?',
+            'pdoSql.selfReferenceCondition': [
+                r"Self-referencing JOIN condition: '([^']+)'",
+                r"Self-referencing WHERE condition: '([^']+)'",
+            ],
+            'pdoSql.mySqlSpecific': [
+                r'instead of (\w+)\(\)',
+                r'instead of (LIMIT)',
+            ],
         }
 
         key = self.parse_pattern(patterns, error)
