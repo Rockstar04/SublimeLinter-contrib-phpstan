@@ -316,11 +316,30 @@ class PhpStan(PhpLinter):
                 r'Undefined variable: (\$\w+)',
                 r'Variable (\$\w+) might not be defined\.'
             ],
+
+            'pdoSql.columnMismatch': r'SELECT column mismatch: PHPDoc expects property "([^"]+)"',
+            'pdoSql.columnMissing': r'SELECT column missing: PHPDoc expects property "([^"]+)"',
+            'pdoSql.extraParameter': r'Parameter :(\w+)',
+            'pdoSql.sqlSyntax': r'but token [^ ]+ with value ["\']?([\w]+)["\']?',
+            'pdoSql.selfReferenceCondition': [
+                r"Self-referencing JOIN condition: '([^']+)'",
+                r"Self-referencing WHERE condition: '([^']+)'",
+            ],
+            'pdoSql.mySqlSpecific': [
+                r'instead of (\w+)\(\)',
+                r'instead of (LIMIT)',
+            ],
+            'pdoSql.invalidTableReference': r"Invalid table reference '([^']+)'",
+            'pdoSql.tautologicalCondition': r"Tautological condition in .*? clause: '+([^']+)'+",
         }
 
         key = self.parse_pattern(patterns, error)
 
         if key is not None:
+            if identifier == 'pdoSql.invalidTableReference':
+                # I need to return the occurence with a prefix .
+                print(key+".")
+                return key
             if identifier == 'property.uninitializedReadonly':
                 # remove the first character $
                 return key[1:]
