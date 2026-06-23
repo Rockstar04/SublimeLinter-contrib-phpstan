@@ -188,7 +188,10 @@ class PhpStan(PhpLinter):
 
                     error_message = error_message + "\n" + tip
 
-                line_region = self.view.line(self.view.text_point(error['line'] - 1, 0))
+                # PHPStan returns null line for file-level errors
+                error_line = error['line'] if error['line'] is not None else 1
+
+                line_region = self.view.line(self.view.text_point(error_line - 1, 0))
                 line_content = self.view.substr(line_region)
 
                 stripped_line = line_content.lstrip()
@@ -210,7 +213,7 @@ class PhpStan(PhpLinter):
                 match = LintMatch(
                     match=error,
                     filename=file,
-                    line=error['line'] - 1,
+                    line=error_line - 1,
                     col=col,
                     end_col=end_col,
                     message=error_message,
