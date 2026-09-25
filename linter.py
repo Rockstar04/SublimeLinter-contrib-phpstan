@@ -282,7 +282,7 @@ class PhpStan(PhpLinter):
 
                 # Try to check if we can find the position of the key in the line
                 if key:
-                    pos = self.find_position_key(key, line_content)
+                    pos = self.find_position_key(key, line_content, error_identifier)
 
                     if pos is not None:
                         col = pos[0]
@@ -349,6 +349,7 @@ class PhpStan(PhpLinter):
                 r'Parameter \$\w+ of method [\w\\]+::\w+\(\) has invalid type (\w+)\.',
                 r'Call to method (\w+)\(\) on an unknown class (\w+)\.',
                 r'Method [\w\\]+::\w+\(\) has invalid return type (\w+)\.',
+                r'on an unknown class (\w+)\.',
                 r'extends unknown class [\w\\]+\\(\w+)\.'
             ],
             'classConstant.notFound': r'(::\w+)\.',
@@ -398,7 +399,7 @@ class PhpStan(PhpLinter):
             'return.missing': r'Method [\w\\]+::(\w+)\(\)',
             'return.phpDocType': r'native type (\w+)',
             'return.unusedType': r'never returns (\w+)',
-            'staticMethod.notFound': r'undefined static method (\w+::\w+)\(\)\.',
+            'staticMethod.notFound': r'undefined static method [\w\\]+::(\w+)\(\)\.',
             'staticMethod.void': r'static method [\w\\]+::(\w+)\(\)',
             'staticProperty.notFound': r'static property [\w\\]+::(\$\w+)',
             'property.staticAccess': r'::\$(\w+)',
@@ -441,6 +442,10 @@ class PhpStan(PhpLinter):
             if not is_static and identifier in {'method.nonObject', 'property.notFound', 'property.nonObject', 'assign.propertyType'}:
                 return "->" + key
 
+            # Only the method name is highlighted, whatever the class is written as (GetPath::, self::, static::)
+            if identifier == 'staticMethod.notFound':
+                return "::" + key
+
         else:
             if identifier == 'missingType.iterableValue':
                 return ": array"
@@ -469,7 +474,7 @@ class PhpStan(PhpLinter):
 
         return None
 
-    def find_position_key(self, key, line_content):
+    def find_position_key(self, key, line_content, identifier=None):
         pattern = rf"{key}"
         # Check if key begins with $
         if key.startswith('$'):
@@ -508,6 +513,8 @@ class PhpStan(PhpLinter):
             if key.startswith('->'):
                 col = key_match.start() + 2
             elif key.startswith(': '):
+                col = key_match.start() + 2
+            elif key.startswith('::') and identifier == 'staticMethod.notFound':
                 col = key_match.start() + 2
 
             # Include $ if there is $ just before the key
