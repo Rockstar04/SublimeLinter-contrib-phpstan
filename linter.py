@@ -4,11 +4,12 @@ from shlex import quote
 import logging
 import json
 import re
+import subprocess
 
 import sublime
 import sublime_plugin
 
-from SublimeLinter.lint import LintMatch, PhpLinter, hit, util
+from SublimeLinter.lint import LintMatch, PhpLinter, TransientError, hit, util
 from SublimeLinter.lint.quick_fix import (QuickAction, extend_existing_comment, insert_preceding_line, line_error_is_on, merge_actions_by_code_and_line, quick_actions_for, read_previous_line)
 
 logger = logging.getLogger("SublimeLinter.plugins.phpstan")
@@ -48,7 +49,18 @@ class AutoLintOnActivation(sublime_plugin.EventListener):
             hit(view, 'on_modified', only_run=['phpstan'])
 
 class PhpStan(PhpLinter):
-    tempfile_suffix = "-"
+    # The buffer is written to a temp file, so that unsaved changes can be analysed with the "editor mode" of PHPStan
+    # See https://phpstan.org/user-guide/editor-mode
+    tempfile_suffix = "php"
+
+    # Minimum PHPStan version supporting the editor mode (--tmp-file and --instead-of), per major version
+    editor_mode_min_versions = {
+        1: (1, 12, 27),
+        2: (2, 1, 17),
+    }
+
+    # Cache of the editor mode support, per PHPStan command (the version is only checked once per executable)
+    editor_mode_support = {}
 
     defaults = {
         "selector": "embedding.php, source.php"
@@ -92,6 +104,72 @@ class PhpStan(PhpLinter):
             print("⚠️ phpstan.neon has not been found - Fallback on PHPStan installed globally")
 
         return cmd + ["${args}"] + opts + ["--", "${file}"]
+
+    @classmethod
+    def should_lint(cls, view, settings, reason):
+        # The editor mode needs the path of the original file, and the configuration is found from it
+        if not view.file_name():
+            return False
+
+        return super().should_lint(view, settings, reason)
+
+    def run(self, cmd, code):
+        if path.isfile(self.filename) and self.supports_editor_mode(cmd):
+            # PHPStan analyses the buffer (in a temp file) instead of the file on disk, and reports errors with the original path
+            separator = cmd.index("--")
+            cmd = cmd[:separator] + ["--tmp-file", "${temp_file}", "--instead-of", "${file}"] + cmd[separator:]
+
+            return self.tmpfile(cmd, code)
+
+        # Without the editor mode, only the file on disk can be analysed: we keep the current errors until the file is saved
+        if self.view.is_dirty():
+            raise TransientError("PHPStan editor mode unavailable, the file must be saved to be analysed")
+
+        return self.communicate(cmd)
+
+    def supports_editor_mode(self, cmd):
+        # The executable may have several parts (e.g. ["php", "vendor/bin/phpstan"]), so we keep everything before the subcommand
+        version_cmd = cmd[:cmd.index("analyse")] + ["--version"]
+        cache_key = tuple(version_cmd)
+
+        if cache_key not in self.editor_mode_support:
+            self.editor_mode_support[cache_key] = self.check_editor_mode_support(version_cmd)
+
+        return self.editor_mode_support[cache_key]
+
+    def check_editor_mode_support(self, version_cmd):
+        try:
+            output = subprocess.run(
+                version_cmd,
+                env=self.get_environment(),
+                cwd=self.get_working_dir(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                startupinfo=util.create_startupinfo(),
+                timeout=30,
+            ).stdout.decode("utf-8", "replace")
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.warning("Unable to get the PHPStan version: {}".format(e))
+            return False
+
+        # Example of output: "PHPStan - PHP Static Analysis Tool 2.1.17" (possibly preceded by PHP deprecation notices)
+        match = re.search(r'PHPStan - PHP Static Analysis Tool (\d+)\.(\d+)\.(\d+)', output)
+        if not match:
+            logger.info("Unknown PHPStan version, editor mode disabled:\n{}".format(output))
+            return False
+
+        version = tuple(int(part) for part in match.groups())
+        min_version = self.editor_mode_min_versions.get(version[0])
+
+        # Major versions after the ones listed above support the editor mode
+        supported = version >= min_version if min_version else version[0] > max(self.editor_mode_min_versions)
+
+        logger.info("PHPStan {} - editor mode {}".format(
+            ".".join(map(str, version)),
+            "enabled" if supported else "disabled (requires PHPStan 1.12.27+ or 2.1.17+)",
+        ))
+
+        return supported
 
     def have_argument(self, name):
         if self.settings.get('args'):
