@@ -335,13 +335,17 @@ class PhpStan(PhpLinter):
                 r'Method [\w\\]+::(\w+)\(\) invoked with \d+ parameters, \d+ required\.',
                 r'::(\w+)\(\)',
             ],
-            'array.duplicateKey': r"value '([^']+)'",
+            'array.duplicateKey': [
+                r"value '([^']+)'",
+            ],
             'assign.propertyReadOnly': r'Property object\{[^}]*\b[^}]*\}::\$(\w+) is not writable\.',
             'assign.propertyType': [
                 r'does not accept [\w\\]+\\(\w+)\.',
                 r'::\$(\w+)',
                 r'::(\$\w+)',
             ],
+            'binaryOp.invalid': r'Binary operation "([^"]+)" between',
+            'class.extendsFinalByPhpDoc': r'Class (?:[\w\\]+\\)?(\w+) extends',
             'class.notFound': [
                 r'on an unknown class [\w\\]+\\(\w+)\.',
                 r'has unknown class [\w\\]+\\(\w+) as its type\.',
@@ -353,10 +357,12 @@ class PhpStan(PhpLinter):
                 r'on an unknown class (\w+)\.',
                 r'extends unknown class [\w\\]+\\(\w+)\.'
             ],
+            'classConstant.deprecated': r'deprecated class constant (\w+) of class',
             'classConstant.notFound': r'(::\w+)\.',
             'constant.notFound': r'Constant (\w+) not found\.',
             'constructor.unusedParameter': r'Constructor of class [\w\\]+ has an unused parameter (\$\w+)\.',
             'equal.notAllowed': r'via\s+"([^"]+)"',
+            'notEqual.notAllowed': r'via\s+"([^"]+)"',
             'equal.alwaysFalse': r'comparison using (\S+)',
             'equal.alwaysTrue': r'comparison using (\S+)',
             'function.nameCase': r'incorrect case: (\w+)',
@@ -374,13 +380,13 @@ class PhpStan(PhpLinter):
             'method.unused': r'::(\w+)\(\)',
             'method.void': r'Result of method [\w\\]+::(\w+)\(\)',
             'missingType.iterableValue': r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no value type specified in iterable type array\.',
-            'missingType.parameter': r'Method [\w\\]+::\w+\(\) has parameter (\$\w+) with no type specified\.',
+            'missingType.parameter': r'has parameter (\$\w+) with no type specified\.',
             'missingType.property': r'Property [\w\\]+::(\$\w+) has no type specified\.',
-            'missingType.return': r'::(\w+)\(\)',
+            'missingType.return': r'(\w+)\(\) has no return type specified',
             'nullCoalesce.offset': r"Offset\s+'([^']+)'",
             'nullCoalesce.variable': r'Variable (\$\w+) on left side of \?\? is never defined\.',
             'offsetAccess.notFound': r"Offset '([^']+)'",
-            'offsetAccess.nonOffsetAccessible': r"Cannot access offset '([^']+)' on array",
+            'offsetAccess.nonOffsetAccessible': r"Cannot access offset '([^']+)' on",
             'property.notFound': r'::\$(\w+)',
             'property.nonObject': r'property \$([\w_]+) on',
             'property.onlyRead': r'::\$(\w+)',
@@ -400,15 +406,19 @@ class PhpStan(PhpLinter):
             'return.missing': r'Method [\w\\]+::(\w+)\(\)',
             'return.phpDocType': r'native type (\w+)',
             'return.unusedType': r'never returns (\w+)',
+            'security.superglobalUsage': r'Usage of superglobal (\$_\w+) is forbidden',
             'staticMethod.notFound': r'undefined static method [\w\\]+::(\w+)\(\)\.',
             'staticMethod.void': r'static method [\w\\]+::(\w+)\(\)',
             'staticProperty.notFound': r'static property [\w\\]+::(\$\w+)',
             'property.staticAccess': r'::\$(\w+)',
+            'variable.implicitArray': r'variable (\$\w+) does not exist',
             'variable.undefined': [
                 r'Undefined variable: (\$\w+)',
                 r'Variable (\$\w+) might not be defined\.'
             ],
-            'varTag.nativeType': r'subtype of native type (\w+)',
+            'varTag.nativeType': [
+                r'subtype of native type (\w+)'
+            ],
             'pdoSql.columnMismatch': r'SELECT column mismatch: PHPDoc expects property "([^"]+)"',
             'pdoSql.columnMissing': r'SELECT column missing: PHPDoc expects property "([^"]+)"',
             'pdoSql.extraParameter': r'Parameter :(\w+)',
@@ -432,6 +442,9 @@ class PhpStan(PhpLinter):
                 # I need to return the occurence with a prefix .
                 print(key+".")
                 return key
+            if identifier == 'binaryOp.invalid':
+                # the operator (., +, *...) is searched as a regex, so escape it
+                return re.escape(key)
             if identifier == 'property.uninitializedReadonly':
                 # remove the first character $
                 return key[1:]
