@@ -97,11 +97,11 @@ class PhpStan(PhpLinter):
             if autoload_file:
                 opts.append("--autoload-file={}".format(quote(autoload_file)))
 
-                cmd[0] = autoload_file.replace("/autoload.php", "/bin/phpstan")
+                cmd[0] = path.join(path.dirname(autoload_file), "bin", "phpstan")
             else:
-                print("⚠️ Fallback on PHPStan installed globally")
+                print("⚠️ vendor/autoload.php has not been found - Fallback on PHPStan installed globally")
         else:
-            print("⚠️ phpstan.neon has not been found - Fallback on PHPStan installed globally")
+            print("⚠️ PHPStan configuration has not been found - Fallback on PHPStan installed globally")
 
         return cmd + ["${args}"] + opts + ["--", "${file}"]
 
@@ -180,7 +180,7 @@ class PhpStan(PhpLinter):
         return False
 
     def find_autoload_php(self, configPath):
-        pathAutoLoad = configPath.replace("/phpstan.neon", "/vendor/autoload.php")
+        pathAutoLoad = path.join(path.dirname(configPath), "vendor", "autoload.php")
 
         if (path.isfile(pathAutoLoad)):
             return pathAutoLoad
@@ -194,6 +194,7 @@ class PhpStan(PhpLinter):
             configFiles = (
                 "{basedir}/phpstan.neon".format(basedir=basedir),
                 "{basedir}/phpstan.neon.dist".format(basedir=basedir),
+                "{basedir}/phpstan.dist.neon".format(basedir=basedir),
             )
 
             for configFile in configFiles:
